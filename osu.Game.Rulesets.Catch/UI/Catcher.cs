@@ -9,7 +9,6 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Pooling;
-using osu.Framework.Graphics.Textures;
 using osu.Framework.Utils;
 using osu.Game.Beatmaps;
 using osu.Game.Configuration;
@@ -17,7 +16,6 @@ using osu.Game.Rulesets.Catch.Judgements;
 using osu.Game.Rulesets.Catch.Objects;
 using osu.Game.Rulesets.Catch.Objects.Drawables;
 using osu.Game.Rulesets.Catch.Skinning;
-using osu.Game.Rulesets.Catch.Skinning.Default;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Skinning;
 using osuTK;
@@ -27,6 +25,16 @@ namespace osu.Game.Rulesets.Catch.UI
 {
     public class Catcher : SkinReloadableDrawable
     {
+        /// <summary>
+        /// The size of the catcher at 1x scale.
+        /// </summary>
+        public const float BASE_SIZE = 106.75f;
+
+        /// <summary>
+        /// The width of the catcher which can receive fruit. Equivalent to "catchMargin" in osu-stable.
+        /// </summary>
+        public const float ALLOWED_CATCH_RANGE = 0.8f;
+
         /// <summary>
         /// The default colour used to tint hyper-dash fruit, along with the moving catcher, its trail
         /// and end glow/after-image during a hyper-dash.
@@ -59,11 +67,6 @@ namespace osu.Game.Rulesets.Catch.UI
         public double Speed => (Dashing ? 1 : 0.5) * BASE_SPEED * hyperDashModifier;
 
         /// <summary>
-        /// The amount by which caught fruit should be offset from the plate surface to make them look visually "caught".
-        /// </summary>
-        public const float CAUGHT_FRUIT_VERTICAL_OFFSET = -5;
-
-        /// <summary>
         /// The amount by which caught fruit should be scaled down to fit on the plate.
         /// </summary>
         private const float caught_fruit_scale_adjust = 0.5f;
@@ -81,19 +84,13 @@ namespace osu.Game.Rulesets.Catch.UI
         /// <summary>
         /// Contains objects dropped from the plate.
         /// </summary>
-        private readonly Container<CaughtObject> droppedObjectTarget;
+        private readonly DroppedObjectContainer droppedObjectTarget;
 
-        [Cached]
-        protected readonly Bindable<CatcherAnimationState> CurrentStateBindable = new Bindable<CatcherAnimationState>();
-
-        public CatcherAnimationState CurrentState => CurrentStateBindable.Value;
-
-        /// <summary>
-        /// The width of the catcher which can receive fruit. Equivalent to "catchMargin" in osu-stable.
-        /// </summary>
-        public const float ALLOWED_CATCH_RANGE = 0.8f;
-
-        internal Texture CurrentTexture => ((ICatcherSprite)currentCatcher.Drawable).CurrentTexture;
+        public CatcherAnimationState CurrentState
+        {
+            get => Body.AnimationState.Value;
+            private set => Body.AnimationState.Value = value;
+        }
 
         private bool dashing;
 
@@ -110,18 +107,22 @@ namespace osu.Game.Rulesets.Catch.UI
             }
         }
 
-        public Direction VisualDirection
-        {
-            get => Scale.X > 0 ? Direction.Right : Direction.Left;
-            set => Scale = new Vector2((value == Direction.Right ? 1 : -1) * Math.Abs(Scale.X), Scale.Y);
-        }
+        /// <summary>
+        /// The currently facing direction.
+        /// </summary>
+        public Direction VisualDirection { get; set; } = Direction.Right;
+
+        /// <summary>
+        /// Whether the contents of the catcher plate should be visually flipped when the catcher direction is changed.
+        /// </summary>
+        private bool flipCatcherPlate;
 
         /// <summary>
         /// Width of the area that can be used to attempt catches during gameplay.
         /// </summary>
         private readonly float catchWidth;
 
-        private readonly SkinnableDrawable currentCatcher;
+        internal readonly SkinnableCatcher Body;
 
         private Color4 hyperDashColour = DEFAULT_HYPER_DASH_COLOUR;
         private Color4 hyperDashEndGlowColour = DEFAULT_HYPER_DASH_COLOUR;
@@ -137,14 +138,14 @@ namespace osu.Game.Rulesets.Catch.UI
         private readonly DrawablePool<CaughtBanana> caughtBananaPool;
         private readonly DrawablePool<CaughtDroplet> caughtDropletPool;
 
-        public Catcher([NotNull] Container trailsTarget, [NotNull] Container<CaughtObject> droppedObjectTarget, BeatmapDifficulty difficulty = null)
+        public Catcher([NotNull] Container trailsTarget, [NotNull] DroppedObjectContainer droppedObjectTarget, BeatmapDifficulty difficulty = null)
         {
             this.trailsTarget = trailsTarget;
             this.droppedObjectTarget = droppedObjectTarget;
 
             Origin = Anchor.TopCentre;
 
-            Size = new Vector2(CatcherArea.CATCHER_SIZE);
+            Size = new Vector2(BASE_SIZE);
             if (difficulty != null)
                 Scale = calculateScale(difficulty);
 
@@ -160,14 +161,10 @@ namespace osu.Game.Rulesets.Catch.UI
                 {
                     Anchor = Anchor.TopCentre,
                     Origin = Anchor.BottomCentre,
+                    // offset fruit vertically to better place "above" the plate.
+                    Y = -5
                 },
-                currentCatcher = new SkinnableDrawable(
-                    new CatchSkinComponent(CatchSkinComponents.Catcher),
-                    _ => new DefaultCatcher())
-                {
-                    Anchor = Anchor.TopCentre,
-                    OriginPosition = new Vector2(0.5f, 0.06f) * CatcherArea.CATCHER_SIZE
-                },
+                Body = new SkinnableCatcher(),
                 hitExplosionContainer = new HitExplosionContainer
                 {
                     Anchor = Anchor.TopCentre,
@@ -205,7 +202,7 @@ namespace osu.Game.Rulesets.Catch.UI
         /// Calculates the width of the area used for attempting catches in gameplay.
         /// </summary>
         /// <param name="scale">The scale of the catcher.</param>
-        public static float CalculateCatchWidth(Vector2 scale) => CatcherArea.CATCHER_SIZE * Math.Abs(scale.X) * ALLOWED_CATCH_RANGE;
+        public static float CalculateCatchWidth(Vector2 scale) => BASE_SIZE * Math.Abs(scale.X) * ALLOWED_CATCH_RANGE;
 
         /// <summary>
         /// Calculates the width of the area used for attempting catches in gameplay.
@@ -268,17 +265,16 @@ namespace osu.Game.Rulesets.Catch.UI
                 SetHyperDashState();
 
             if (result.IsHit)
-                updateState(hitObject.Kiai ? CatcherAnimationState.Kiai : CatcherAnimationState.Idle);
+                CurrentState = hitObject.Kiai ? CatcherAnimationState.Kiai : CatcherAnimationState.Idle;
             else if (!(hitObject is Banana))
-                updateState(CatcherAnimationState.Fail);
+                CurrentState = CatcherAnimationState.Fail;
         }
 
         public void OnRevertResult(DrawableCatchHitObject drawableObject, JudgementResult result)
         {
             var catchResult = (CatchJudgementResult)result;
 
-            if (CurrentState != catchResult.CatcherAnimationState)
-                updateState(catchResult.CatcherAnimationState);
+            CurrentState = catchResult.CatcherAnimationState;
 
             if (HyperDashing != catchResult.CatcherHyperDash)
             {
@@ -357,12 +353,18 @@ namespace osu.Game.Rulesets.Catch.UI
             trails.HyperDashTrailsColour = hyperDashColour;
             trails.EndGlowSpritesColour = hyperDashEndGlowColour;
 
+            flipCatcherPlate = skin.GetConfig<CatchSkinConfiguration, bool>(CatchSkinConfiguration.FlipCatcherPlate)?.Value ?? true;
+
             runHyperDashStateTransition(HyperDashing);
         }
 
         protected override void Update()
         {
             base.Update();
+
+            var scaleFromDirection = new Vector2((int)VisualDirection, 1);
+            Body.Scale = scaleFromDirection;
+            caughtObjectContainer.Scale = hitExplosionContainer.Scale = flipCatcherPlate ? scaleFromDirection : Vector2.One;
 
             // Correct overshooting.
             if ((hyperDashDirection > 0 && hyperDashTargetPosition < X) ||
@@ -371,14 +373,6 @@ namespace osu.Game.Rulesets.Catch.UI
                 X = hyperDashTargetPosition;
                 SetHyperDashState();
             }
-        }
-
-        private void updateState(CatcherAnimationState state)
-        {
-            if (CurrentState == state)
-                return;
-
-            CurrentStateBindable.Value = state;
         }
 
         private void placeCaughtObject(DrawablePalpableCatchHitObject drawableObject, Vector2 position)
@@ -405,9 +399,6 @@ namespace osu.Game.Rulesets.Catch.UI
 
             float adjustedRadius = displayRadius * lenience_adjust;
             float checkDistance = MathF.Pow(adjustedRadius, 2);
-
-            // offset fruit vertically to better place "above" the plate.
-            position.Y += CAUGHT_FRUIT_VERTICAL_OFFSET;
 
             while (caughtObjectContainer.Any(f => Vector2Extensions.DistanceSquared(f.Position, position) < checkDistance))
             {
@@ -483,7 +474,7 @@ namespace osu.Game.Rulesets.Catch.UI
                     break;
 
                 case DroppedObjectAnimation.Explode:
-                    var originalX = droppedObjectTarget.ToSpaceOfOtherDrawable(d.DrawPosition, caughtObjectContainer).X * Scale.X;
+                    float originalX = droppedObjectTarget.ToSpaceOfOtherDrawable(d.DrawPosition, caughtObjectContainer).X * caughtObjectContainer.Scale.X;
                     d.MoveToY(d.Y - 50, 250, Easing.OutSine).Then().MoveToY(d.Y + 50, 500, Easing.InSine);
                     d.MoveToX(d.X + originalX * 6, 1000);
                     d.FadeOut(750);

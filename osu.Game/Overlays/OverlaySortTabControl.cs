@@ -144,10 +144,12 @@ namespace osu.Game.Overlays
                             Anchor = Anchor.Centre,
                             Origin = Anchor.Centre,
                             Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
-                            Text = (value as Enum)?.GetDescription() ?? value.ToString()
+                            Text = (value as Enum)?.GetLocalisableDescription() ?? value.ToString()
                         }
                     }
                 });
+
+                AddInternal(new HoverClickSounds());
             }
 
             protected override void LoadComplete()

@@ -113,37 +113,45 @@ namespace osu.Game.Rulesets.Catch.Tests
 
         private void checkHyperDashCatcherColour(ISkin skin, Color4 expectedCatcherColour, Color4? expectedEndGlowColour = null)
         {
-            CatcherArea catcherArea = null;
+            Container trailsContainer = null;
+            Catcher catcher = null;
             CatcherTrailDisplay trails = null;
 
             AddStep("create hyper-dashing catcher", () =>
             {
-                Child = setupSkinHierarchy(catcherArea = new CatcherArea(new Container<CaughtObject>())
+                trailsContainer = new Container();
+                Child = setupSkinHierarchy(new Container
                 {
                     Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                    Scale = new Vector2(4f),
+                    Children = new Drawable[]
+                    {
+                        catcher = new Catcher(trailsContainer, new DroppedObjectContainer())
+                        {
+                            Scale = new Vector2(4)
+                        },
+                        trailsContainer
+                    }
                 }, skin);
             });
 
             AddStep("get trails container", () =>
             {
-                trails = catcherArea.OfType<CatcherTrailDisplay>().Single();
-                catcherArea.MovableCatcher.SetHyperDashState(2);
+                trails = trailsContainer.OfType<CatcherTrailDisplay>().Single();
+                catcher.SetHyperDashState(2);
             });
 
-            AddUntilStep("catcher colour is correct", () => catcherArea.MovableCatcher.Colour == expectedCatcherColour);
+            AddUntilStep("catcher colour is correct", () => catcher.Colour == expectedCatcherColour);
 
             AddAssert("catcher trails colours are correct", () => trails.HyperDashTrailsColour == expectedCatcherColour);
             AddAssert("catcher end-glow colours are correct", () => trails.EndGlowSpritesColour == (expectedEndGlowColour ?? expectedCatcherColour));
 
             AddStep("finish hyper-dashing", () =>
             {
-                catcherArea.MovableCatcher.SetHyperDashState(1);
-                catcherArea.MovableCatcher.FinishTransforms();
+                catcher.SetHyperDashState();
+                catcher.FinishTransforms();
             });
 
-            AddAssert("catcher colour returned to white", () => catcherArea.MovableCatcher.Colour == Color4.White);
+            AddAssert("catcher colour returned to white", () => catcher.Colour == Color4.White);
         }
 
         private void checkHyperDashFruitColour(ISkin skin, Color4 expectedColour)

@@ -199,8 +199,11 @@ namespace osu.Game.Rulesets.UI
 
             Playfield.PostProcess();
 
-            foreach (var mod in Mods.OfType<IApplicableToDrawableHitObjects>())
-                mod.ApplyToDrawableHitObjects(Playfield.AllHitObjects);
+            foreach (var mod in Mods.OfType<IApplicableToDrawableHitObject>())
+            {
+                foreach (var drawableHitObject in Playfield.AllHitObjects)
+                    mod.ApplyToDrawableHitObject(drawableHitObject);
+            }
         }
 
         public override void RequestResume(Action continueResume)
@@ -486,15 +489,15 @@ namespace osu.Game.Rulesets.UI
         {
             get
             {
-                foreach (var h in Objects)
+                foreach (var hitObject in Objects)
                 {
-                    if (h.HitWindows.WindowFor(HitResult.Miss) > 0)
-                        return h.HitWindows;
+                    if (hitObject.HitWindows.WindowFor(HitResult.Miss) > 0)
+                        return hitObject.HitWindows;
 
-                    foreach (var n in h.NestedHitObjects)
+                    foreach (var nested in hitObject.NestedHitObjects)
                     {
-                        if (h.HitWindows.WindowFor(HitResult.Miss) > 0)
-                            return n.HitWindows;
+                        if (nested.HitWindows.WindowFor(HitResult.Miss) > 0)
+                            return nested.HitWindows;
                     }
                 }
 

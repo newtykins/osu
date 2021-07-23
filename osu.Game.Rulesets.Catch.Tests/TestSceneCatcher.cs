@@ -6,8 +6,8 @@ using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
 using osu.Framework.Allocation;
-using osu.Game.Rulesets.Catch.UI;
 using osu.Framework.Graphics;
+using osu.Game.Rulesets.Catch.UI;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Testing;
 using osu.Framework.Utils;
@@ -31,7 +31,9 @@ namespace osu.Game.Rulesets.Catch.Tests
         [Resolved]
         private OsuConfigManager config { get; set; }
 
-        private Container<CaughtObject> droppedObjectContainer;
+        private Container trailContainer;
+
+        private DroppedObjectContainer droppedObjectContainer;
 
         private TestCatcher catcher;
 
@@ -43,18 +45,17 @@ namespace osu.Game.Rulesets.Catch.Tests
                 CircleSize = 0,
             };
 
-            var trailContainer = new Container();
-            droppedObjectContainer = new Container<CaughtObject>();
-            catcher = new TestCatcher(trailContainer, droppedObjectContainer, difficulty);
+            trailContainer = new Container();
+            droppedObjectContainer = new DroppedObjectContainer();
 
             Child = new Container
             {
                 Anchor = Anchor.Centre,
                 Children = new Drawable[]
                 {
-                    trailContainer,
                     droppedObjectContainer,
-                    catcher
+                    catcher = new TestCatcher(trailContainer, droppedObjectContainer, difficulty),
+                    trailContainer,
                 }
             };
         });
@@ -188,9 +189,9 @@ namespace osu.Game.Rulesets.Catch.Tests
             AddStep("catch more fruits", () => attemptCatch(() => new Fruit(), 9));
             checkPlate(10);
             AddAssert("caught objects are stacked", () =>
-                catcher.CaughtObjects.All(obj => obj.Y <= Catcher.CAUGHT_FRUIT_VERTICAL_OFFSET) &&
-                catcher.CaughtObjects.Any(obj => obj.Y == Catcher.CAUGHT_FRUIT_VERTICAL_OFFSET) &&
-                catcher.CaughtObjects.Any(obj => obj.Y < -25));
+                catcher.CaughtObjects.All(obj => obj.Y <= 0) &&
+                catcher.CaughtObjects.Any(obj => obj.Y == 0) &&
+                catcher.CaughtObjects.Any(obj => obj.Y < 0));
         }
 
         [Test]
@@ -293,7 +294,7 @@ namespace osu.Game.Rulesets.Catch.Tests
         {
             public IEnumerable<CaughtObject> CaughtObjects => this.ChildrenOfType<CaughtObject>();
 
-            public TestCatcher(Container trailsTarget, Container<CaughtObject> droppedObjectTarget, BeatmapDifficulty difficulty)
+            public TestCatcher(Container trailsTarget, DroppedObjectContainer droppedObjectTarget, BeatmapDifficulty difficulty)
                 : base(trailsTarget, droppedObjectTarget, difficulty)
             {
             }

@@ -10,16 +10,19 @@ namespace osu.Game.Graphics.UserInterface
         [Description("default")]
         Default,
 
+        [Description("soft")]
+        Soft,
+
         [Description("button")]
         Button,
-
-        [Description("softer")]
-        Soft,
 
         [Description("toolbar")]
         Toolbar,
 
-        [Description("songselect")]
-        SongSelect
+        [Description("tabselect")]
+        TabSelect,
+
+        [Description("scrolltotop")]
+        ScrollToTop
     }
 }
